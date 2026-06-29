@@ -25,3 +25,4 @@ ggplot(freq_dataII, aes(x = Type, y = Total_Count, fill = Type)) +geom_bar(stat 
     x = "Defense System Type",y = "Phages present in genomes") +theme(axis.text.x = element_text(angle = 45, hjust = 1, face = "bold"),
                                                                       legend.position = "none")
 
+
