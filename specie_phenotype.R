@@ -1,26 +1,4 @@
-#PATHOGENICITY PHENOTYPES 
-
-library(treemapify)
-
-setwd("C:/Users/Lawal/Desktop/Data/phi-plasmidII")
-list12=list.files(path = ".", pattern = "plasmid_proteins.faa.tsv", recursive = F)
-col_names=c("qseqid","sseqid", "pident", "length", "mismatch", "gapopen", "qstart", "qend", "sstart", "send", "evalue", "bitscore")
-phi_plasmid_tables=list()
-for (i in 1:length(list12)){
-  file1= read_tsv(list12[i],  col_names = col_names)
-  file1$Genome=paste0(list12[i])
-  phi_plasmid_tables=rbind(phi_plasmid_tables, file1)  
-  print(paste0(i))
-}
-
-df=as.data.frame(phi_plasmid_tables)
-phi_plasmid_tables$Genome = gsub("_genomic_plasmid_proteins.faa.tsv","",phi_plasmid_tables$Genome)
-phi_plasmid_tables=phi_plasmid_tables%>%
-  separate(`sseqid`,
-           into = c("UniprotID","Accession","Gene","Hostcode","Specie","Phenotype"),
-           sep = "#", fill = "right", extra = "merge")
-
-
+#PATHOGENICITY PHENOTYPES
 setwd("C:/Users/Lawal/Desktop/Data/mge-plasmidII")
 list11=list.files(path = ".", pattern = "plasmid_proteins.faa.tsv", recursive = F)
 col_names=c("qseqid","sseqid", "pident", "length", "mismatch", "gapopen", "qstart", "qend", "sstart", "send", "evalue", "bitscore")
@@ -41,137 +19,147 @@ plasmid_tables=plasmid_tables%>%
            into = c("mobileOG ID","Gene","Accession Number","Category","Initiation","Copy"),
            sep = "\\|", fill = "right", extra = "merge")
 
-combined_plasmid_table=plasmid_tables%>% 
-  full_join(phi_plasmid_tables, by = c("Genome"))
+setwd("C:/Users/Lawal/Desktop/Data/phi-plasmidII")
+list12=list.files(path = ".", pattern = "plasmid_proteins.faa.tsv", recursive = F)
+col_names=c("qseqid","sseqid", "pident", "length", "mismatch", "gapopen", "qstart", "qend", "sstart", "send", "evalue", "bitscore")
+phi_plasmid_tables=list()
+for (i in 1:length(list12)){
+  file1= read_tsv(list12[i],  col_names = col_names)
+  file1$Genome=paste0(list12[i])
+  phi_plasmid_tables=rbind(phi_plasmid_tables, file1)  
+  print(paste0(i))
+}
+
+df=as.data.frame(phi_plasmid_tables)
+phi_plasmid_tables$Genome = gsub("_genomic_plasmid_proteins.faa.tsv","",phi_plasmid_tables$Genome)
+phi_plasmid_tables=phi_plasmid_tables%>%
+  separate(`sseqid`,
+           into = c("UniprotID","Accession","Gene","Hostcode","Specie","Phenotype"),
+           sep = "#", fill = "right", extra = "merge")
+
+phi_plasmid_tables$contig=gsub(".1_.*",".1",
+                               phi_plasmid_tables$qseqid)
 
 
-filtered_plasmids=combined_plasmid_table%>%
+plasmid_tables$contig=gsub(".1_.*",".1",
+                            plasmid_tables$qseqid)
+pathogen_table= phi_plasmid_tables%>%
+  filter (contig%in%plasmid_tables$contig&Genome%in%plasmid_tables$Genome)
+  #select(c(Genome, Specie, Phenotype))
+
+
+
+#To filter the phenotype for easier classification 
+filtered_plasmids=pathogen_table%>%
   filter(
     str_detect(Phenotype, "reduced_virulence") | 
       str_detect(Phenotype, "loss_of_pathogenicity") | 
       str_detect(Phenotype, "plant_avirulence_determinant") 
   )
 
+#Classification of the phenotypes 
 filtered_plasmids=filtered_plasmids%>%
-  mutate(Summary = case_when(
+  mutate(pathogenic_traits = case_when(
     str_detect(Phenotype, "loss_of_pathogenicity") ~ "Essential Pathogenicity",
     str_detect(Phenotype, "reduced_virulence") ~ "Virulence Enhancer",
     str_detect(Phenotype, "plant_avirulence_determinant") ~ "Immune System Effector",
     TRUE ~ "Other"
   ))
 
-
-summary_counts=filtered_plasmids %>%
-  group_by(Summary)%>%
+trait_counts=filtered_plasmids %>%
+  group_by(pathogenic_traits)%>%
   summarise(Count = n())
 
-#chi_test=chisq.test(summary_counts$Count)
-#p_val_text=paste("p-value:", format.pval(chi_test$p.value))
 
-
-v_plot <- ggplot(summary_counts, aes(x =Summary, y = Count,  fill = Summary)) +
+v_plot=ggplot(trait_counts, aes(x =pathogenic_traits, y = Count,  fill = pathogenic_traits)) +
   geom_bar(stat = "identity", color = "black", width = 0.7) +
   theme_minimal() +
   scale_fill_brewer(palette = "Set2") + 
   labs(
-    #title = "Plasmid Pathogenicity Phenotypes",
-    #subtitle = p_val_text,
-    y = "Number of Genes", 
+    y = "Number of Associated Genes", 
     x = "Functional Category"
   ) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-# Grouping and counting
-bubble_summary <- filtered_plasmids %>%
-  group_by(Specie, Summary) %>%
+
+bubble_summary=filtered_plasmids %>%
+  group_by(Specie, pathogenic_traits) %>%
   summarise(Gene_Count = n(), .groups = 'drop')
 
-# The Plot
-bubble_plot <- ggplot(bubble_summary, aes(x = Specie, y = Summary)) +
-  # Use size for the count and color for the category
-  geom_point(aes(size = Gene_Count, fill = Summary), shape = 21, color = "black", alpha = 0.8) +
-  # Customizing the bubble sizes
-  scale_size_continuous(range = c(2, 12), breaks = c(1, 5, 10, 20, 50)) +
-  scale_fill_viridis_d(option = "plasma") + # Professional color palette
-  theme_light() +
+pathogenic_genes=ggplot(bubble_summary, aes(x = Specie, y = pathogenic_traits, fill = log10(Gene_Count))) +
+  geom_point(size=10, shape = 21, color = "black", alpha = 0.8) +
+  scale_fill_viridis_c(option = "plasma") +
+  theme_bw() +
   labs(
-    #title = "Plasmid Virulence Reservoir",
-    #subtitle = "Size indicates number of genes; Colors represent functional categories",
-    x = "Species (PHI-base prediction)",
-    y = "Predicted Phenotype",
-    size = "Gene Count"
+    x = "Species where originally the gene was found in PHI-database",
+    y = "",
+    size = "Number of genes"
   ) +
   theme(
-    axis.text.x = element_text(angle = 45, hjust = 1, face = "italic"),
-    panel.grid.major = element_line(linetype = "dashed", color = "black"),
+    axis.text.x = element_text(angle = 45, size= 15, hjust = 1, face = "italic"),
+    axis.text.y = element_text(size =15, hjust =1, face =NULL), 
+    #panel.grid.major = element_line(linetype = "dashed", color = "black"),
     legend.position = "right"
   )
+ggsave("pathogenic_genes.png", plot =  pathogenic_genes, width = 7, height = 5, dpi = 600)
+dev.off()
 
 #DEFENSE VS PATHOGENIC TRAITS
-df_patho = full_join(filtered_plasmids, defense_system_prime, by =c("Genome" ="Genome2"))%>%
-  select(Summary, type, DF_system_Count, Viral_Count)
 
-correlation=full_join(filtered_plasmids, defense_system_prime, by = c("Genome" = "Genome2"))%>%
-  select(Genome, Summary, type) %>%
-  filter(!is.na(Summary), !is.na(type)) %>%
-  group_by(Genome, Summary, type) %>%
-  summarize(Count = n(), .groups = "drop") %>% 
-  group_by(Summary, type) %>%
-  summarize(
-    rho = cor(Count, as.numeric(factor(Genome)), method = "spearman", use = "complete.obs"),
-    p_val = cor.test(Count, as.numeric(factor(Genome)), method = "spearman", exact = FALSE)$p.value,
-    .groups = "drop"
-  ) %>%
-  mutate(
-    stars = case_when(
-      p_val < 0.001 ~ "***", 
-      p_val < 0.01  ~ "**", 
-      p_val < 0.05  ~ "*", 
-      TRUE          ~ "ns" 
-    ),
-    label_text = paste0("R = ", round(rho, 2), " (", stars, ")")
-  )
+phenotypes =phi_tables%>%
+  mutate(pathogenic_traits = case_when(
+    str_detect(Phenotype, "loss_of_pathogenicity") ~ "Essential Pathogenicity",
+    str_detect(Phenotype, "reduced_virulence") ~ "Virulence Enhancer",
+    str_detect(Phenotype, "plant_avirulence_determinant") ~ "Immune System Effector",
+    TRUE ~ "Other"))
 
-print(correlation)
-correlation$Summary <- factor(correlation$Summary, 
-                              levels = c("Immune System Effector", "Virulence Enhancer", "Essential Pathogenicity"))
+phenotypes1=phenotypes%>% 
+  filter(pathogenic_traits != "Other")
+phenotypes2=dcast(phenotypes1, Genome+pathogenic_traits~., value.var = "Genome", length)
 
-# 2. Plotting Script with Asterisks positioned above points
-ggplot(correlation, aes(x = Summary, y = rho)) +
-  # Draw the individual calculated correlation points
-  geom_point(aes(fill = Summary), size = 4.5, shape = 21, color = "black", show.legend = FALSE) + 
-  
-  # Connect the points with a trend trajectory line within each panel
-  geom_smooth(method = "lm", se = FALSE, aes(group = 1), #color = "Trend Line"), 
-              linewidth = 0.8, linetype = "solid", alpha = 0.7, show.legend = TRUE) + 
-  
-  # 2. Plots your points cleanly without breaking the grid grouping
-  geom_point(aes(fill = Summary), size = 4.5, shape = 21, color = "black", show.legend = TRUE) +
-  # FIXED: Places the asterisks (stars) directly above each individual point
-  geom_text(aes(label = stars), vjust = -0.6, fontface = "plain", size = 5.5, color = "black") +
-  
-  
-  # Separate by Defense System type
-  facet_wrap(~type, ncol = 3) + 
-  
-  # Colors and styling
-  scale_fill_manual(values = c("Immune System Effector" = "maroon", 
-                               "Virulence Enhancer" = "#99D8C8", 
-                               "Essential Pathogenicity" = "#FFFDC9")) +
-  # Expand Y limits slightly so top asterisks don't hit the box roof
-  scale_y_continuous(limits = c(-0.42, -0.15)) +
-  theme_bw(base_size = 12) +
+phenotypes3=full_join(select(phenotypes2, Genome2=Genome, everything()), defense_system_prime)
+phenotypes4=filter(phenotypes3,DF_system_pr!="NA" )
+
+#Correlation
+
+path_correlation = ggplot(phenotypes4, aes(y = `.`, x =DF_system_Count, colour = pathogenic_traits)) + 
+  geom_point() + geom_smooth(method = "lm")+
+  theme_bw() + 
   labs(
-    x = "Pathogenicity Traits",
-    y = "Spearman Correlation Coefficient",
-    #title = "Immune Strain Trends Across Virulence Classes"
-  ) +
+    x = "traits", 
+    y = "Defense System number per Genome"
+  ) + 
+  facet_wrap(~paste(type,"vs",pathogenic_traits), scales="free")+
   theme(
-    plot.title = element_text(face = "plain", hjust = 0.5, size = 13, margin = margin(b=12)),
-       axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, face = "plain", color = "black", margin = margin(t = 5)),
-    axis.text.y = element_text(color = "black"),
-    strip.background = element_rect(fill = "#E0ECF4", color = "black"),
-    strip.text = element_text(face = "plain", size = 11),
+    strip.background = element_rect(fill = "white", colour="white"), 
+    strip.text.y = element_text(angle = 0, face = "bold", size = 10), 
+    strip.placement = "outside", 
+    legend.position = "right", 
+    axis.title = element_text(face = "bold"),
     panel.grid.minor = element_blank(),
-    plot.margin = margin(t = 10, r = 10, b = 25, l = 10, unit = "pt")
-  )
+    axis.text = element_text(size=10))+geom_smooth(method = "lm")+ stat_cor(method="spearman")
+ggsave(file = "patho_correlation.png",plot = path_correlation, width =  7, height = 5, dpi = 600)
+dev.off()
+
+#Boxplot
+path_boxplot= ggplot(phenotypes4, aes(y = `.`, x = pathogenic_traits, fill=DF_system_pr)) + 
+  geom_boxplot()+
+  theme_bw() + 
+  labs(
+    x = "traits", 
+    y = "Defense System number per Genome"
+  ) + 
+  facet_wrap(~paste(type), scales="free")+
+  theme(
+    strip.background = element_rect(fill = "white", colour="white"), 
+    strip.text.y = element_text(angle = 0, face = "bold", size = 10), 
+    strip.placement = "outside", 
+    legend.position = "right", 
+    axis.title = element_text(face = "bold"),
+    panel.grid.minor = element_blank(),
+    axis.text = element_text(size=10))+geom_smooth(method = "lm")+ stat_compare_means(method = "wilcox.test")
+
+ggsave(file = "path_boxplot.png",plot = path_boxplot, width =  7, height = 5, dpi = 600 )
+dev.off()
+
+
