@@ -9,7 +9,7 @@ library(tidyr)
 library(stringr)
 
 #set working directory to folder that contained the data 
-setwd("C:/Users/Lawal/Desktop/FINAL_CONCATENATED_RESULTS/CheckV")
+setwd("C:/Users/Lawal/Desktop/Data/CheckV")
 
 #make a list from the file in the  working  directory
 #The recursive function, if TRUE list all directories including all subdirectories; if false, returns only the main directory in the specified working directory/path. 
@@ -46,7 +46,7 @@ write.csv(df, file = "CheckVresultsII.csv")
 
 count=sum(checkv_tables$completeness ==100, na.rm =TRUE)
 
-setwd("C:/Users/Lawal/Desktop/FINAL_CONCATENATED_RESULTS/CheckM2")
+setwd("C:/Users/Lawal/Desktop/Data/CheckM2")
 
 #CHECKM2
 list2=list.files(path = ".", pattern = "quality_report.tsv", recursive = T)
@@ -64,9 +64,9 @@ df$Genome= gsub("1_.*.*", "1", gsub("checkm.", "",df$Genome))
 checkm2_tables$Genome2=  gsub("*_genomic/quality_report.*","" , gsub("CheckM2.", "",checkm2_tables$Genome))
 
 
-write.csv(df, file = 'checkmresults.csv')
+write.csv(df, file = 'checkm2.csv')
 
-setwd("C:/Users/Lawal/Desktop/FINAL_CONCATENATED_RESULTS/DefenseFinder")
+setwd("C:/Users/Lawal/Desktop/Data/DefenseFinder")
 
 #DEFENSE_FINDER 
 list3= list.files(path = ".", pattern = "genomic_defense_finder_systems.tsv", recursive = T)
@@ -85,7 +85,7 @@ defense_finder_tables$Genome2= gsub("*_genomic_defense_finder_systems.*","" , gs
 
 write.csv(df, file = 'defense_finder.csv')
 
-setwd("C:/Users/Lawal/Desktop/FINAL_CONCATENATED_RESULTS/geNomad")
+setwd("C:/Users/Lawal/Desktop/Data/geNomad")
 
 #GENOMAD 
 list4= list.files(path = ".", pattern = "_genomic_virus_summary.tsv", recursive = T)
@@ -125,7 +125,7 @@ checkv_tables2=filter(checkv_tables, completeness>=95)%>%dcast(Genome~., value.v
 defense_finder_table2=dcast(defense_finder_tables, type+Genome2~., value.var = "Genome2", length)%>%
   select(DF_system_Count=".", type, Genome2)
 defense_finder_table2$Genome =defense_finder_table2$Genome2
-merged_table= full_join(checkv_tables2, defense_finder_table2)%>%
+defense_finder_table2= full_join(checkv_tables2, defense_finder_table2)%>%
 full_join(select( checkm2_tables, Genome2, everything()))%>%filter(
   Completeness>=95&Contamination<=5)
 
@@ -144,32 +144,6 @@ merged_table_2$DF_system_pr[merged_table_2$DF_system_Count==0]="Absence"
 
 defense_system_prime=merged_table_2%>%
   filter(type %in% c("Cas","Dnd", "Mok_Hok_Sok", "Prometheus", "Retron","RM"))
-
-
-
-
- 
-df=as.data.frame(prediction_table)
-
-colnames(prediction_table)
-
-#creating the complete_Genomes table from the checkm2 table with unique Genomes and no duplicates (count =525)
-complete_Genomes=data.frame(Genome2=unique(checkm2_tables$Genome2))
-
-counts=as.data.frame(table(defense_finder_tables$Genome2))
-colnames(counts)=c("Genome2", "Frequency")
-
-#merging the complete_Genomes table to the counts table (unique_counts) to include the genomes with no defense systems 
-unique_counts=merge(complete_Genomes, counts,
-                    by ="Genome2")
-
-#making the frequency of the genomes with no defense systems to be 0 instead of NA 
-unique_counts$Frequency[is.na(unique_counts$Frequency)]=0
-
-#creating the quality table from a full join of the checkm2 table and the unique_counts table
-Quality_table = full_join(x = checkm2_tables,
-                          y = unique_counts,
-                          by=c("Genome2")) 
 
 #filtering the quality table by completeness >=95% and contamination <=5%
 Quality_table=filter(checkm2_tables, Completeness>=95&Contamination<=5) 
@@ -201,9 +175,9 @@ for (i in 1:length(listP)){
 df=as.data.frame(diamond_tables)
 #data cleaning, removing separators 
 diamond_tables$Genome = gsub("_genomic_prots.tsv","",diamond_tables$Genome)
-
+write.csv(df, file = 'diamond.csv')
 #MOBILE GENETIC ELEMENTS (MGE)
-setwd("C:/Users/Lawal/Desktop/Results")
+setwd("C:/Users/Lawal/Desktop/Data/mobile_genetic_elements")
 listP=list.files(path = ".", pattern = "genomic_prots.faa.tsv", recursive = F)
 col_names=c("qseqid","sseqid", "pident", "length", "mismatch", "gapopen", "qstart", "qend", "sstart", "send", "evalue", "bitscore")
 
@@ -224,9 +198,9 @@ mge_tables <- mge_tables%>%
   separate(`sseqid`,
            into = c("mobileOG ID","Gene","Accession Number","Category","Initiation","Copy"),
            sep = "\\|", fill = "right", extra = "merge")
-
+write.csv(df, file = 'mge_tables.csv')
 #PATHOGEN-HOST INTERACTIONS
-setwd("C:/Users/Lawal/Desktop/PHI")
+setwd("C:/Users/Lawal/Desktop/Data/PHI")
 listP=list.files(path = ".", pattern = "genomic_prots.faa.tsv", recursive = F)
 col_names=c("qseqid","sseqid", "pident", "length", "mismatch", "gapopen", "qstart", "qend", "sstart", "send", "evalue", "bitscore")
 
@@ -247,10 +221,10 @@ phi_tables <- phi_tables%>%
   separate(`sseqid`,
            into = c("UniprotID","Accession","Gene","Hostcode","Specie","Phenotype"),
            sep = "#", fill = "right", extra = "merge")
-
+write.csv(df, file = 'phi_tables.csv')
 
 #PHAGE-DEFENSE-SYSTEM TABLE 
-setwd("C:/Users/Lawal/Desktop/checkv_defensefinder")
+setwd("C:/Users/Lawal/Desktop/Data/checkv_defensefinder")
 phage_defense_finder_table=list()
 listC= list.files(path = ".", pattern = "viruses_defense_finder_systems.tsv", recursive = T)
 defense_finder_tables=list()
@@ -301,7 +275,7 @@ aro_metadata=read_tsv(filepath)
 
 
 #Predicted plasmid sequences from geNomad Validation 
-setwd("C:/Users/Lawal/Desktop/mge-plasmidII")
+setwd("C:/Users/Lawal/Desktop/Data/mge-plasmidII")
 list11=list.files(path = ".", pattern = "plasmid_proteins.faa.tsv", recursive = F)
 col_names=c("qseqid","sseqid", "pident", "length", "mismatch", "gapopen", "qstart", "qend", "sstart", "send", "evalue", "bitscore")
 plasmid_tables=list()
@@ -321,10 +295,10 @@ plasmid_tables=plasmid_tables%>%
            into = c("mobileOG ID","Gene","Accession Number","Category","Initiation","Copy"),
            sep = "\\|", fill = "right", extra = "merge")
 
-write.csv(plasmid_tables, file = 'mge_plasmids.csv')
+write.csv(plasmid_tables, file = 'plasmid_tables.csv')
 
 #plasmid anti-phage systems 
-setwd("C:/Users/Lawal/Desktop/plasmid-antiphage-systems")
+setwd("C:/Users/Lawal/Desktop/Data/plasmid-antiphage-systems")
 
 list13=list.files(path = ".", pattern = "genomic_plasmid_proteins_defense_finder_systems.tsv", recursive = T)
 #col_names=c("qseqid","sseqid", "pident", "length", "mismatch", "gapopen", "qstart", "qend", "sstart", "send", "evalue", "bitscore")
@@ -345,7 +319,7 @@ plasmid_defense_finder_tables$Genome= gsub("*_genomic_plasmid_proteins_defense_f
 plasmid_defense_finder_tables$Genome2= gsub("*gemomic_plasmid_proteins_defense_finder_systems.*", "", gsub("DefenseFinder.", "",plasmid_defense_finder_tables$Genome))
 
 
-write.csv(plasmid_defense_tables, file = 'plasmid_defense.csv')
+write.csv(plasmid_defense_finder_tables, file = 'plasmid_defense_finder_tables.csv')
 
 #Predicted plasmid sequences pathogenicity inference 
 setwd("C:/Users/Lawal/Desktop/phi-plasmidII")
@@ -365,5 +339,8 @@ phi_plasmid_tables=phi_plasmid_tables%>%
   separate(`sseqid`,
            into = c("UniprotID","Accession","Gene","Hostcode","Specie","Phenotype"),
            sep = "#", fill = "right", extra = "merge")
-write.csv(phi_plasmid_tables, file = 'phi-plasmids.csv')
+write.csv(phi_plasmid_tables, file = 'phi-plasmid_tables.csv')
+
+
+
 
