@@ -43,7 +43,7 @@ for (i in 1:length(list4)){
 df= as.data.frame(Genomad_tables)
 Genomad_tables$Genome2 = gsub("_genomic_summary*.*","" , gsub("geNomad.", "",Genomad_tables$Genome))
 Genomad_tables=Genomad_tables%>%
-  separate(Kingdom,
+  separate(taxonomy,
            into = c("Kingdom","Phylum","Class","Order","Family","Genus","Species"),
            sep = ";", fill = "right", extra = "merge")
 
@@ -126,22 +126,18 @@ Quality_table=filter(checkm2_tables, Completeness>=95&Contamination<=5)
 plot_data = full_join(virus_presence_absence, Quality_table , by = "Genome2")%>%
   filter( Completeness>=90&Contamination<=5) %>%filter(!str_detect(Genome2,"MAG"))
 
-checkv_tables2=filter(checkv_tables, completeness>=95)%>%dcast(Genome~., value.var = "Genome", length)%>%
-  select(Viral_Count=".", Genome2=Genome)
-
 defense_finder_table2=dcast(defense_finder_tables, type+Genome2~., value.var = "Genome2", length)%>%
   select(DF_system_Count=".", type, Genome2)
 
 
 
 merged_table= full_join(checkv_tables2, defense_finder_table2)%>%
-  full_join(select( checkm2_tables, Genome2, everything()))%>%
+  full_join(select(checkm2_tables, everything()))%>%
   filter(Completeness>=95&Contamination<=5)
 
 
 
 merged_table$Viral_Count[is.na(merged_table$Viral_Count)]=0
-merged_table=as.data.frame(merged_table)
 merged_table_2=dcast(data=merged_table, Genome2+Viral_Count~type, value.var = "DF_system_Count", sum, fill = 0)%>%
   gather(-c("Genome2", "Viral_Count"), key="type", value="DF_system_Count")
 merged_table_2$DF_system_pr=merged_table_2$DF_system_Count
@@ -157,65 +153,104 @@ for (sys in systems){
   test_data=defense_system_prime%>%
     filter(type==sys)%>%
     filter(!is.na(Viral_Count))
-  test1=shapiro.test(resid(lm((test_data$Viral_Count+1)~test_data$DF_system_pr)))
+
+  test1 = shapiro.test(resid(lm((test_data$Viral_Count + 1) ~ test_data$DF_system_pr)))
   if (test1$p.value<0.05){
-    test2=t.test((test_data$Viral_Count+1)~test_data$DF_system_pr)
+    test2 = t.test((test_data$Viral_Count + 1) ~ test_data$DF_system_pr)
   } else {
-    test1=shapiro.test(resid(lm(log10(test_data$Viral_Count+1)~test_data$DF_system_pr)))
+    test1 = shapiro.test(resid(lm(log10(test_data$Viral_Count + 1) ~ test_data$DF_system_pr)))
     if (test1$p.value>0.05){
-      test2=t.test(log10(test_data$Viral_Count+1)~test_data$DF_system_pr)
-    }  else{
-      test2=t.test(base::rank(test_data$Viral_Count)~test_data$DF_system_pr)
-    }
+      test2 = t.test(log10(test_data$Viral_Count + 1) ~ test_data$DF_system_pr)
+      }  else{
+        test2 = t.test(base::rank(test_data$Viral_Count) ~ test_data$DF_system_pr)
+        }
   }
   m1=data.frame(
     Group = paste0(sys),
     t=paste0(test1$p.value),
     s=paste0(test2$p.value)
   )
-  print(m1)
   all_stats_results=rbind(all_stats_results, m1)
-  
-  plot=ggplot(defense_system_prime, aes(x=DF_system_pr, y=Viral_Count + 1, fill=DF_system_pr))+geom_boxplot(outlier.shape = NA, width = 0.6) + geom_jitter(position = position_jitter(height = 0.1), alpha = 0.3, size = 0.8) + labs(title = paste("Defense system:", sys),subtitle = paste("p-value:", round(test2$p.value, 6)))
+  print(m1)
 }
-print(plot)
-all_stats_results$s = as.numeric(all_stats_results$s)
-all_stats_results$p_adj = p.adjust(all_stats_results$s, method = "BH")
-all_stats_results$Significance = ifelse(all_stats_results$p_adj < 0.05, "Significant", "NS")
-print(all_stats_results)
-
-test_data2 = defense_system_prime %>%
-  filter(!is.na(Viral_Count)) %>%
-  filter(type %in% systems)
-
-
-stats_for_plot=all_stats_results %>%
-  mutate(s = as.numeric(s)) %>%
-  mutate(p_stars = case_when(
-    s = 0.0001 ~ "****",
-    s = 0.001 ~ "***",
-    s = 0.01  ~ "**",
-    s = 0.05  ~ "*",
-    TRUE      ~ "ns"
-  ))
-
-label_data=stats_for_plot %>%
-  rename(Type=Group) %>%
-  filter(Type %in% c("Cas", "Dnd", "Mok_Hok_Sok", "Prometheus", "Retron", "RM"))
-ggplot(test_data2, aes(x = Viral_Count, y =DF_system_pr, fill = DF_system_pr)) + 
-  geom_boxplot(outlier.shape = NA, width = 0.6) + 
-  geom_jitter(position = position_jitter(height = 0.1), alpha = 0.3, size = 0.8) +
-  facet_wrap(~Type, ncol = 1, strip.position = "left") + 
-  scale_fill_manual(values = c("Presence" = "maroon", "Absence" = "#99D8C9")) +
-  geom_text(data = label_data, aes(label = p_stars), x = Inf, y = Inf,  hjust = 1.5, vjust = 1.5, size = 4, fontface = "bold", inherit.aes = FALSE) +
-  theme_bw() + theme(strip.background = element_rect(fill = "white"), strip.text.y.right  = element_text(angle = 0, face = "bold", size = 10), strip.placement = "outside", legend.position = "right", axis.title = element_text(face = "bold")
-  ) + labs( x = expression((Predicted~ Phage ~ Number ~ per ~ Genome)), y = "Defense System Type", fill = "Status")
-
-
-freq_data=defense_system_prime %>%
-  filter(type %in% systems) %>%
-  group_by(type) %>%
-  summarise(Total_Count = sum(DF_system_Count > 0))
-ggplot(freq_data, aes(x = type, y = Total_Count, fill = type)) + geom_bar(stat = "identity", color = "black", width = 0.7) + geom_text(aes(label = Total_Count), vjust = -0.5, fontface = "bold") +
-  theme_classic() + scale_fill_brewer(palette = "Set3") + labs(x = "Defense System Type", y = "Number of Genomes") + 
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, face = "bold"), legend.position = "none")
+  
+  
+  all_stats_results$p_adj = p.adjust(all_stats_results$s, method = "BH")
+  all_stats_results$Significance = ifelse(all_stats_results$p_adj < 0.05, "Significant", "NS")
+  print(all_stats_results)
+  
+  all_stats_results$s = as.numeric(all_stats_results$p_adj)
+  
+  all_stats_results$s[all_stats_results$p_adj>0.05]=""
+  all_stats_results$s[all_stats_results$p_adj<0.05]="*"
+  all_stats_results$s[all_stats_results$p_adj<0.01]="**"
+  all_stats_results$s[all_stats_results$p_adj<0.001]="***"
+  all_stats_results$s[all_stats_results$p_adj<0.0001]="****"
+  
+  
+  label_data=all_stats_results %>%
+    select(type=Group, everything()) %>%
+    filter(type %in% c("Cas", "Dnd", "Mok_Hok_Sok", "Prometheus", "Retron", "RM"))
+  
+  
+  #The Boxplot
+  boxplot_df=full_join(defense_system_prime, label_data)
+  defense_system_boxplot=ggplot(boxplot_df, aes(y = type, x =Viral_Count , fill = DF_system_pr)) + 
+    geom_boxplot(outlier.shape = NA, width = 0.6, alpha = 0.6) + 
+    geom_jitter(position = position_jitterdodge(jitter.width =0.2,dodge.width = 0.6), alpha = 0.75, size = 2, shape=21) +
+    scale_fill_manual(values = c("Presence" = "#FFFFC8", "Absence" = "#99D8C9")) + 
+    #stat_compare_means(method = "wilcox.test") +
+    geom_text( aes(label = s, x = 7), size=7)+
+    theme_bw() + 
+    labs(
+      x = "Predicted Phage Number per Genome", 
+      y = "Defense System Type", 
+      fill = "Status"
+    ) + 
+    theme(
+      strip.background = element_rect(fill = "white", colour="white"), 
+      strip.text.y = element_text(angle = 0, face = "bold", size = 0), 
+      strip.placement = "outside", 
+      legend.position = "right", 
+      axis.title = element_text(face = "bold"),
+      panel.grid.minor = element_blank(),
+      axis.text = element_text(size=10)
+      
+    )
+ggsave("defense_system_boxplot.png", plot =  defense_system_boxplot, width = 7, height = 5, dpi = 600)
+dev.off()
+  #Correlation
+  
+  defense_system_correlation = ggplot(defense_system_prime, aes(y = DF_system_Count, x = Viral_Count)) + 
+    #  geom_point( size = 2, shape=21) +
+    theme_bw() + 
+    labs(
+      x = "No of Viruses", 
+      y = "Defense System number per Genome"
+    ) + 
+    facet_wrap(~type, scales="free")+
+    theme(
+      strip.background = element_rect(fill = "white", colour="white"), 
+      strip.text.y = element_text(angle = 0, face = "bold", size = 10), 
+      strip.placement = "outside", 
+      legend.position = "right", 
+      axis.title = element_text(face = "bold"),
+      panel.grid.minor = element_blank(),
+      axis.text = element_text(size=10))+geom_smooth(method = "lm")+ 
+    stat_cor(method="spearman")+ylim(-0.25, 6)+
+    geom_jitter(position = position_jitterdodge(jitter.height = 0.1, jitter.width = 0.25 ), size = 2, shape=21) 
+  
+  ggsave("defense_system_correlation.png", plot =  defense_system_correlation, width = 7, height = 5, dpi = 600)
+  dev.off()
+  
+#Defense Systems selection 
+  freq_data=defense_system_prime %>%
+    filter(type %in% systems) %>%
+    group_by(type) %>%
+    summarise(Total_Count = sum(DF_system_Count > 0))
+  top_defense_systems=ggplot(freq_data, aes(x = type, y = Total_Count, fill = type)) + geom_bar(stat = "identity", color = "black", width = 0.7) + geom_text(aes(label = Total_Count), vjust = -0.5, fontface = "bold") +
+    theme_classic() + scale_fill_brewer(palette = "Set3") + labs(x = "Defense System Type", y = "Number of Genomes") + 
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, face = "bold"), legend.position = "none")
+  
+  ggsave("top_defense_systems.png", plot = top_defense_systems, width = 7, height = 5, dpi = 600)
+  dev.off()
