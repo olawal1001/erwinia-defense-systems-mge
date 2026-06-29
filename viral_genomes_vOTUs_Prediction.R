@@ -20,3 +20,4 @@ checkv_ids=paste0(viral_genome$contig_id, viral_genome$Genomefasta)
 
 quality_fasta = fasta[names(fasta) %in% checkv_ids]
 writeXStringSet(quality_fasta, file ="quality_viromes.fa", format ="fasta")
+
