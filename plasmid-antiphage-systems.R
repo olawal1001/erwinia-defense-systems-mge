@@ -22,5 +22,8 @@ freq_dataIII=plasmid_defense_systems_prime%>%
   group_by(Type) %>%
   summarise(Total_Count=sum(Count > 0))
 
-ggplot(freq_dataIII, aes(x = Type, y = Total_Count, fill = Type)) + geom_bar(stat = "identity", color = "black", width = 0.7) + geom_text(aes(label = Total_Count), vjust = -0.5, fontface = "bold") + theme_classic() +
+plasmid_plot = ggplot(freq_dataIII, aes(x = Type, y = Total_Count, fill = Type)) + geom_bar(stat = "identity", color = "black", width = 0.7) + geom_text(aes(label = Total_Count), vjust = -0.5, fontface = "bold") + theme_classic() +
   scale_fill_brewer(palette = "Set3") + labs(x = "Defense System Type", y = "Plasmid Proteins") +theme(axis.text.x = element_text(angle = 45, hjust = 1, face = "bold"),legend.position = "none")
+
+ggsave("plasmid_plot.png", plot =  plasmid_plot, width = 7, height = 5, dpi = 600)
+dev.off()
