@@ -14,6 +14,7 @@ mge_tables=mge_tables%>%
   separate(`sseqid`,
            into = c("mobileOG ID","Gene","Accession Number","Category","Initiation","Copy"),
            sep = "\\|", fill = "right", extra = "merge")
+mge_tables$Genome= gsub("_genomic_prots.*", "",mge_tables$Genome)
 df_mge=mge_tables%>%
   mutate(Class=case_when(
     grepl("tnp|transpos|nt|insertion sequence|IS", Gene,ignore.case = TRUE)~ "Transposons",
@@ -146,7 +147,6 @@ mge_correlation=ggplot(boxplot, aes(y = HGT_Marker_counts, x =Defense_System_cou
 
 ggsave(file = "mge_correlation.png",plot = mge_correlation, width =  7, height = 5, dpi = 600 )
 dev.off()
-
 
 
 
