@@ -115,21 +115,23 @@ phenotypes =phi_tables%>%
 
 phenotypes1=phenotypes%>% 
   filter(pathogenic_traits != "Other")
-phenotypes2=dcast(phenotypes1, Genome+pathogenic_traits~., value.var = "Genome", length)
+phenotypes2=dcast(phenotypes1, Genome~pathogenic_traits, value.var = "Genome", length)
+phenotypes2=gather(phenotypes2, -Genome, key="pathogenic_traits", value="Count")
 
 phenotypes3=full_join(select(phenotypes2, Genome2=Genome, everything()), defense_system_prime)
 phenotypes4=filter(phenotypes3,DF_system_pr!="NA" )
 
 #Correlation
 
-path_correlation = ggplot(phenotypes4, aes(y = `.`, x =DF_system_Count, colour = pathogenic_traits)) + 
+path_correlation = ggplot(phenotypes4, aes(y = Count, x =DF_system_Count, colour = pathogenic_traits)) + 
   geom_point() + geom_smooth(method = "lm")+
-  theme_bw() + 
+  geom_jitter(position = position_jitterdodge(jitter.height = 0.1, jitter.width = 0.25 ), size = 2, shape=21)+
   labs(
     x = "traits", 
     y = "Defense System number per Genome"
   ) + 
   facet_wrap(~paste(type,"vs",pathogenic_traits), scales="free")+
+  scale_colour_manual(values = c( "#FFFFC8", "#99D8C9", "maroon")) +
   theme(
     strip.background = element_rect(fill = "white", colour="white"), 
     strip.text.y = element_text(angle = 0, face = "bold", size = 10), 
@@ -142,9 +144,10 @@ ggsave(file = "patho_correlation.png",plot = path_correlation, width =  7, heigh
 dev.off()
 
 #Boxplot
-path_boxplot= ggplot(phenotypes4, aes(y = `.`, x = pathogenic_traits, fill=DF_system_pr)) + 
+path_boxplot= ggplot(phenotypes4, aes(y = log10(Count+1), x = pathogenic_traits, fill=DF_system_pr)) + 
   geom_boxplot()+
-  theme_bw() + 
+  geom_jitter(position = position_jitterdodge(jitter.width =0.2,dodge.width = 0.6), alpha = 0.75, size = 2, shape=21) +
+  scale_fill_manual(values=c( "#FFFFC8", "#99D8C9")) + 
   labs(
     x = "traits", 
     y = "Defense System number per Genome"
@@ -152,7 +155,7 @@ path_boxplot= ggplot(phenotypes4, aes(y = `.`, x = pathogenic_traits, fill=DF_sy
   facet_wrap(~paste(type), scales="free")+
   theme(
     strip.background = element_rect(fill = "white", colour="white"), 
-    strip.text.y = element_text(angle = 0, face = "bold", size = 10), 
+    strip.text.y = element_text(angle = 45, face = "bold", size = 8), 
     strip.placement = "outside", 
     legend.position = "right", 
     axis.title = element_text(face = "bold"),
@@ -161,5 +164,8 @@ path_boxplot= ggplot(phenotypes4, aes(y = `.`, x = pathogenic_traits, fill=DF_sy
 
 ggsave(file = "path_boxplot.png",plot = path_boxplot, width =  7, height = 5, dpi = 600 )
 dev.off()
+
+
+
 
 
